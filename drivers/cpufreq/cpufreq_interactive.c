@@ -414,13 +414,13 @@ static u64 update_load(int cpu)
 		ppol->policy->governor_data;
 	u64 now;
 	u64 now_idle;
-	unsigned int delta_idle;
-	unsigned int delta_time;
+	u64 delta_idle;
+	u64 delta_time;
 	u64 active_time;
 
 	now_idle = get_cpu_idle_time(cpu, &now, tunables->io_is_busy);
-	delta_idle = (unsigned int)(now_idle - pcpu->time_in_idle);
-	delta_time = (unsigned int)(now - pcpu->time_in_idle_timestamp);
+	delta_idle = (now_idle - pcpu->time_in_idle);
+	delta_time = (now - pcpu->time_in_idle_timestamp);
 
 	if (delta_time <= delta_idle)
 		active_time = 0;
@@ -445,7 +445,7 @@ static void __cpufreq_interactive_timer(unsigned long data, bool is_notif)
 	struct cpufreq_interactive_tunables *tunables =
 		ppol->policy->governor_data;
 	struct cpufreq_interactive_cpuinfo *pcpu;
-	unsigned int new_freq = 0;
+	unsigned int new_freq;
 	unsigned int loadadjfreq = 0, tmploadadjfreq;
 	unsigned int index;
 	unsigned long flags;
@@ -610,7 +610,7 @@ static void __cpufreq_interactive_timer(unsigned long data, bool is_notif)
 	spin_lock_irqsave(&speedchange_cpumask_lock, flags);
 	cpumask_set_cpu(max_cpu, &speedchange_cpumask);
 	spin_unlock_irqrestore(&speedchange_cpumask_lock, flags);
-	wake_up_process_no_notif(speedchange_task);
+	wake_up_process(speedchange_task);
 
 rearm:
 	if (!timer_pending(&ppol->policy_timer))
@@ -715,7 +715,7 @@ static void cpufreq_interactive_boost(struct cpufreq_interactive_tunables *tunab
 	spin_unlock_irqrestore(&speedchange_cpumask_lock, flags[0]);
 
 	if (anyboost)
-		wake_up_process_no_notif(speedchange_task);
+		wake_up_process(speedchange_task);
 }
 
 int load_change_callback(struct notifier_block *nb, unsigned long val,
@@ -744,8 +744,8 @@ int load_change_callback(struct notifier_block *nb, unsigned long val,
 	spin_unlock_irqrestore(&ppol->target_freq_lock, flags);
 
 	if (!hrtimer_is_queued(&ppol->notif_timer))
-		hrtimer_start(&ppol->notif_timer, ms_to_ktime(1),
-			      HRTIMER_MODE_REL);
+		__hrtimer_start_range_ns(&ppol->notif_timer, ms_to_ktime(1),
+					0, HRTIMER_MODE_REL, 0);
 exit:
 	up_read(&ppol->enable_sem);
 	return 0;
@@ -1688,7 +1688,7 @@ static int __init cpufreq_interactive_init(void)
 	get_task_struct(speedchange_task);
 
 	/* NB: wake up so the thread does not look hung to the freezer */
-	wake_up_process_no_notif(speedchange_task);
+	wake_up_process(speedchange_task);
 
 	return cpufreq_register_governor(&cpufreq_gov_interactive);
 }
